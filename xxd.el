@@ -1,24 +1,49 @@
 #!/usr/bin/env emacs --script
 
-(defun enumerate (l)
-  (let ((index 0)
-        (result nil))
-    (dolist (element l (nreverse result))
-      (push (list index element) result)
-      (setq index (+ 16 index)))))
+(defun partition-string-by-k (str &optional k)
+  (let ((k (or k 2)))	; k default: 2
+    (if (string-empty-p str)
+        nil
+      (let* ((len (min k (length str)))
+             (group (substring str 0 len))
+             (rest (substring str len)))
+        (cons group
+              (partition-string-by-k rest k))))))
+
+(defun ascii-decimal-pairs-to-ascii-hex-pairs (decimal-pairs)
+  (mapconcat
+   (lambda (pair)
+     (apply #'format
+	    (if (eql 2 (length pair))
+	      "%02x%02x"
+	      "%02x")  ; for dangling non-pairs: ((31 32) (33))
+	    pair))
+   decimal-pairs " "))
+
+(defun string-pairs-to-ascii-decimal-pairs (string-pairs)
+  (mapcar
+   (lambda (pair)
+     (string-to-list
+      pair))
+   string-pairs))
 
 (defun hex-dump-line (address line)
   (concat
    (format "%08x" address)
    ": "
-   (mapconcat (lambda (char) (format "%02X" char))
-             (string-to-list line)
-             " ")
-   ;(if (> 1 (length line))
-   ;    (elt l 0)
-   ;  "nah")
+   (format "%-39s"  ; TODO: support alternate widths (-c/--col 16)
+    (ascii-decimal-pairs-to-ascii-hex-pairs
+    (string-pairs-to-ascii-decimal-pairs
+     (partition-string-by-k line 2))))
    "  "
-   line))
+   (replace-regexp-in-string "[^\x20-\x7E]" "." line)))
+
+(defun enumerate (l &optional _start _step)
+  (let ((index (or _start 0))  ; _start default: 0
+        (result nil))
+    (dolist (element l (nreverse result))
+      (push (list index element) result)
+      (setq index (+ (or _step 1) index)))))  ; _step default: 1
 
 (defun xxd (str)
  (princ
@@ -26,7 +51,7 @@
    (string-join
     (mapcar
      (lambda (args) (apply 'hex-dump-line args))
-      (enumerate (split-string str "\n")))
+      (enumerate (partition-string-by-k str 16) 0 16))
    "\n")
   "\n")
  )
